@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deadlock Prevention Toolkit</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #09090f;
+    --surface: #0f0f1a;
+    --surface2: #161625;
+    --border: rgba(120,100,255,0.15);
+    --border2: rgba(120,100,255,0.3);
+    --accent: #7b5fff;
+    --accent2: #a78bfa;
+    --green: #10d97e;
+    --red: #ff4f6e;
+    --amber: #f59e0b;
+    --cyan: #22d3ee;
+    --text: #e2e0f0;
+    --muted: #7c7a9a;
+    --mono: 'JetBrains Mono', monospace;
+    --display: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--display);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* === HEADER === */
+  header {
+    padding: 2rem 2.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo-icon {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, var(--accent), var(--cyan));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  header h1 {
+    font-size: 1.35rem; font-weight: 800;
+    letter-spacing: -0.02em; color: #fff;
+  }
+  header p { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+  .tabs {
+    display: flex; gap: 6px;
+    background: var(--surface); border-radius: 10px; padding: 4px;
+    border: 1px solid var(--border);
+  }
+  .tabs button {
+    padding: 6px 16px; border-radius: 7px; border: none; cursor: pointer;
+    font-family: var(--display); font-size: 0.78rem; font-weight: 600;
+    color: var(--muted); background: transparent; transition: all .2s;
+  }
+  .tabs button.active {
+    background: var(--accent); color: white;
+  }
+  .tabs button:hover:not(.active) { color: var(--text); background: var(--surface2); }
+
+  /* === MAIN LAYOUT === */
+  .main { display: grid; grid-template-columns: 1fr 1fr; gap: 0; min-height: calc(100vh - 80px); }
+
+  .panel {
+    padding: 1.75rem;
+    border-right: 1px solid var(--border);
+  }
+  .panel:last-child { border-right: none; }
+
+  .panel-title {
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 1.2rem;
+  }
+
+  /* === FORM ELEMENTS === */
+  label {
+    display: block; font-size: 0.78rem; color: var(--muted);
+    margin-bottom: 5px; font-weight: 600; letter-spacing: 0.04em;
+  }
+  input, textarea {
+    width: 100%; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 12px; color: var(--text);
+    font-family: var(--mono); font-size: 0.82rem;
+    outline: none; transition: border-color .2s;
+    margin-bottom: 1rem; resize: vertical;
+  }
+  input:focus, textarea:focus { border-color: var(--accent2); }
+  textarea { min-height: 80px; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* === BUTTONS === */
+  .btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 0.5rem; }
+  .btn {
+    padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer;
+    font-family: var(--display); font-size: 0.8rem; font-weight: 700;
+    letter-spacing: 0.03em; transition: all .15s; display: flex; align-items: center; gap: 6px;
+  }
+  .btn:hover { transform: translateY(-1px); filter: brightness(1.12); }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-step { background: var(--cyan); color: #000; }
+  .btn-recover { background: var(--amber); color: #000; }
+  .btn-export { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+
+  /* === OUTPUT SECTION === */
+  .output-area {
+    background: var(--surface2); border-radius: 10px;
+    border: 1px solid var(--border); padding: 1rem;
+    height: 220px; overflow-y: auto;
+    font-family: var(--mono); font-size: 0.8rem; line-height: 1.7;
+    margin-bottom: 1.2rem;
+  }
+  .output-area::-webkit-scrollbar { width: 4px; }
+  .output-area::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .log-safe { color: var(--green); }
+  .log-dead { color: var(--red); }
+  .log-step { color: var(--cyan); }
+  .log-info { color: var(--accent2); }
+  .log-recover { color: var(--amber); }
+  .log-header { color: var(--muted); font-style: italic; }
+
+  /* === STEP EXPLAINER === */
+  .step-explainer {
+    background: var(--surface2); border-radius: 10px;
+    border: 1px solid var(--border); padding: 1rem;
+    margin-bottom: 1.2rem; display: none;
+  }
+  .step-explainer.visible { display: block; }
+  .step-explainer h4 { font-size: 0.78rem; color: var(--accent2); margin-bottom: 8px; font-weight: 700; letter-spacing: 0.05em; }
+  .step-card {
+    background: var(--surface); border-radius: 8px; padding: 10px 12px;
+    border-left: 3px solid var(--accent); margin-bottom: 8px;
+    font-size: 0.8rem; line-height: 1.6;
+  }
+  .step-card.current { border-left-color: var(--cyan); animation: pulse-border 1s ease-in-out infinite; }
+  .step-card.done { border-left-color: var(--green); opacity: 0.7; }
+  @keyframes pulse-border { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+  .need-table {
+    width: 100%; font-family: var(--mono); font-size: 0.75rem;
+    border-collapse: collapse; margin-top: 8px;
+  }
+  .need-table th {
+    background: var(--surface); padding: 5px 8px;
+    border: 1px solid var(--border); color: var(--muted); text-align: center;
+  }
+  .need-table td {
+    padding: 4px 8px; border: 1px solid var(--border); text-align: center;
+  }
+  .need-table .process-col { color: var(--accent2); font-weight: 600; }
+  .need-table .safe { color: var(--green); }
+  .need-table .unsafe { color: var(--red); }
+
+  /* === CONDITIONS PANEL === */
+  .conditions-grid { display: grid; gap: 10px; }
+  .condition-card {
+    background: var(--surface2); border-radius: 10px;
+    border: 1px solid var(--border); padding: 12px 14px;
+    display: flex; align-items: flex-start; gap: 10px;
+    transition: border-color .2s;
+  }
+  .condition-card:hover { border-color: var(--border2); }
+  .cond-icon {
+    width: 34px; height: 34px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0; margin-top: 2px;
+  }
+  .cond-icon.mutex { background: rgba(123,95,255,0.2); }
+  .cond-icon.hold { background: rgba(34,211,238,0.15); }
+  .cond-icon.nopreempt { background: rgba(245,158,11,0.15); }
+  .cond-icon.circular { background: rgba(255,79,110,0.15); }
+  .condition-card h3 { font-size: 0.85rem; font-weight: 700; color: white; margin-bottom: 3px; }
+  .condition-card p { font-size: 0.76rem; color: var(--muted); line-height: 1.5; }
+  .cond-badge {
+    margin-top: 6px; display: inline-block; font-size: 0.68rem;
+    padding: 2px 8px; border-radius: 100px; font-weight: 700;
+  }
+  .badge-prevent { background: rgba(16,217,126,0.15); color: var(--green); }
+  .badge-detect { background: rgba(123,95,255,0.2); color: var(--accent2); }
+
+  /* === TABS CONTENT === */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* === GRAPH === */
+  .chart-wrap {
+    background: var(--surface2); border-radius: 10px;
+    border: 1px solid var(--border); padding: 12px;
+  }
+
+  /* === STATUS BAR === */
+  .status-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 8px; margin-bottom: 1rem;
+    font-size: 0.78rem; font-weight: 600;
+    background: var(--surface2); border: 1px solid var(--border);
+    transition: all .3s;
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .status-idle .status-dot { background: var(--muted); }
+  .status-safe .status-dot { background: var(--green); animation: glow-green 1.5s ease-in-out infinite; }
+  .status-dead .status-dot { background: var(--red); animation: glow-red 1s ease-in-out infinite; }
+  .status-running .status-dot { background: var(--cyan); animation: glow-cyan 0.8s ease-in-out infinite; }
+  @keyframes glow-green { 0%,100%{box-shadow:0 0 4px var(--green)} 50%{box-shadow:0 0 10px var(--green)} }
+  @keyframes glow-red   { 0%,100%{box-shadow:0 0 4px var(--red)}   50%{box-shadow:0 0 12px var(--red)} }
+  @keyframes glow-cyan  { 0%,100%{box-shadow:0 0 4px var(--cyan)}  50%{box-shadow:0 0 10px var(--cyan)} }
+
+  /* === PREVENTION TIP === */
+  .prevention-tip {
+    background: rgba(123,95,255,0.08); border: 1px solid rgba(123,95,255,0.25);
+    border-radius: 10px; padding: 12px 14px; margin-top: 1rem;
+    font-size: 0.78rem; line-height: 1.6; display: none;
+  }
+  .prevention-tip.visible { display: block; }
+  .prevention-tip strong { color: var(--accent2); }
+
+  /* === PROGRESS BAR === */
+  .progress-wrap { margin-bottom: 1rem; }
+  .progress-label { font-size: 0.72rem; color: var(--muted); margin-bottom: 4px; font-family: var(--mono); }
+  .progress-bar {
+    height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; background: linear-gradient(90deg, var(--accent), var(--cyan));
+    border-radius: 2px; width: 0%; transition: width 0.4s ease;
+  }
+
+  /* === SECTION SEPARATOR === */
+  .sep { border: none; border-top: 1px solid var(--border); margin: 1.2rem 0; }
+
+  /* === ALGO EXPLAINER === */
+  .algo-block {
+    background: var(--surface2); border-radius: 10px;
+    border: 1px solid var(--border); padding: 14px; margin-bottom: 1rem;
+    font-size: 0.8rem; line-height: 1.7; color: var(--muted);
+  }
+  .algo-block strong { color: var(--text); }
+  .algo-block .highlight { color: var(--cyan); font-family: var(--mono); font-size: 0.77rem; }
+
+  @media (max-width: 768px) {
+    .main { grid-template-columns: 1fr; }
+    .panel { border-right: none; border-bottom: 1px solid var(--border); }
+    .row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔒</div>
+    <div>
+      <h1>Deadlock Prevention Toolkit</h1>
+      <p>Banker's Algorithm · Deadlock Detection · Recovery Simulation</p>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="active" onclick="switchTab('simulator')">Simulator</button>
+    <button onclick="switchTab('conditions')">4 Conditions</button>
+    <button onclick="switchTab('howto')">How It Works</button>
+  </div>
+</header>
+
+<!-- ===== TAB: SIMULATOR ===== -->
+<div id="tab-simulator" class="tab-content active">
+  <div class="main">
+
+    <!-- LEFT: INPUTS -->
+    <div class="panel">
+      <div class="panel-title">⚙ Configuration</div>
+
+      <label>Processes (comma separated)</label>
+      <input id="processes" placeholder="P1,P2,P3,P4" value="P1,P2,P3,P4">
+
+      <label>Available Resources (space or comma separated)</label>
+      <input id="available" placeholder="e.g. 3 3 2" value="3 3 2">
+
+      <div class="row">
+        <div>
+          <label>Allocation Matrix</label>
+          <textarea id="alloc" rows="5" placeholder="One row per process&#10;e.g.&#10;0 1 0&#10;2 0 0&#10;3 0 2&#10;2 1 1">0 1 0
+2 0 0
+3 0 2
+2 1 1</textarea>
+        </div>
+        <div>
+          <label>Max Need Matrix</label>
+          <textarea id="max" rows="5" placeholder="One row per process&#10;e.g.&#10;7 5 3&#10;3 2 2&#10;9 0 2&#10;2 2 2">7 5 3
+3 2 2
+9 0 2
+2 2 2</textarea>
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="run()">▶ Run Check</button>
+        <button class="btn btn-step" onclick="stepByStep()">⏭ Step-by-Step</button>
+        <button class="btn btn-recover" onclick="recover()">⚡ Recover</button>
+        <button class="btn btn-export" onclick="exportReport()">⬇ Export</button>
+      </div>
+
+      <hr class="sep">
+
+      <div class="panel-title">📚 Algorithm Explanation</div>
+      <div class="algo-block">
+        <strong>Banker's Algorithm</strong> checks if a system is in a <em>safe state</em>.<br><br>
+        It simulates resource allocation by finding a <span class="highlight">safe sequence</span> — an order to execute all processes without any getting stuck.<br><br>
+        <strong>Key matrices:</strong><br>
+        · <span class="highlight">Need[i][j]</span> = Max[i][j] − Allocation[i][j]<br>
+        · <span class="highlight">Work</span> = Available resources (grows as processes finish)<br>
+        · A process runs if <span class="highlight">Need[i] ≤ Work</span>
+      </div>
+    </div>
+
+    <!-- RIGHT: OUTPUT -->
+    <div class="panel">
+      <div class="panel-title">📊 Results</div>
+
+      <div id="status-bar" class="status-bar status-idle">
+        <div class="status-dot"></div>
+        <span id="status-text">Ready — enter configuration and press Run</span>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-label" id="progress-label">Progress: 0/0 processes scheduled</div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      </div>
+
+      <div id="output" class="output-area"><span class="log-header">// Output will appear here...</span></div>
+
+      <div id="step-explainer" class="step-explainer">
+        <h4>🔍 STEP-BY-STEP TRACE</h4>
+        <div id="steps-list"></div>
+      </div>
+
+      <div id="prevention-tip" class="prevention-tip"></div>
+
+      <hr class="sep">
+
+      <div class="panel-title">📈 Resource Usage Chart</div>
+      <div class="chart-wrap">
+        <canvas id="graph" height="160"></canvas>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== TAB: CONDITIONS ===== -->
+<div id="tab-conditions" class="tab-content">
+  <div style="max-width: 860px; margin: 0 auto; padding: 2rem;">
+    <div class="panel-title">☠ The Four Necessary Conditions for Deadlock</div>
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.5rem;line-height:1.7;">
+      A deadlock can occur <em>only if all four</em> of these conditions hold simultaneously. Eliminating even one prevents deadlock entirely.
+    </p>
+
+    <div class="conditions-grid">
+      <div class="condition-card">
+        <div class="cond-icon mutex">🔐</div>
+        <div>
+          <h3>1. Mutual Exclusion</h3>
+          <p>At least one resource must be held in a non-sharable mode. Only one process can use the resource at a time. If another process requests that resource, the requesting process must be delayed until the resource has been released.</p>
+          <span class="cond-badge badge-prevent">Prevention: Use sharable resources (e.g. read-only locks, shared memory)</span>
+        </div>
+      </div>
+
+      <div class="condition-card">
+        <div class="cond-icon hold">🤝</div>
+        <div>
+          <h3>2. Hold and Wait</h3>
+          <p>A process must be holding at least one resource and waiting to acquire additional resources currently held by other processes. This creates the "waiting chain" that enables deadlock.</p>
+          <span class="cond-badge badge-prevent">Prevention: Require processes to request all resources upfront (all-or-nothing)</span>
+        </div>
+      </div>
+
+      <div class="condition-card">
+        <div class="cond-icon nopreempt">🚫</div>
+        <div>
+          <h3>3. No Preemption</h3>
+          <p>Resources cannot be preempted — they can only be released voluntarily by the process holding them. The OS cannot forcibly take a resource from a process holding it.</p>
+          <span class="cond-badge badge-prevent">Prevention: Allow OS to preempt resources (e.g. checkpointing + rollback)</span>
+        </div>
+      </div>
+
+      <div class="condition-card">
+        <div class="cond-icon circular">🔄</div>
+        <div>
+          <h3>4. Circular Wait</h3>
+          <p>A set {P0, P1, …, Pn} of waiting processes must exist such that P0 waits for P1, P1 waits for P2, …, Pn waits for P0. This creates a cycle in the resource allocation graph.</p>
+          <span class="cond-badge badge-prevent">Prevention: Impose total ordering of resources — always request in increasing order</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="sep">
+    <div class="panel-title">🛡 Prevention vs. Detection vs. Avoidance</div>
+    <div class="conditions-grid">
+      <div class="condition-card" style="border-color:rgba(16,217,126,0.3)">
+        <div class="cond-icon" style="background:rgba(16,217,126,0.15); font-size:18px;">🛡</div>
+        <div>
+          <h3>Prevention</h3>
+          <p>Proactively ensure at least one of the four conditions never holds. Safest but may reduce resource utilization (e.g. processes must declare max need upfront).</p>
+        </div>
+      </div>
+      <div class="condition-card" style="border-color:rgba(245,158,11,0.3)">
+        <div class="cond-icon" style="background:rgba(245,158,11,0.15); font-size:18px;">🔍</div>
+        <div>
+          <h3>Detection &amp; Recovery</h3>
+          <p>Allow deadlocks to occur, detect them using the resource allocation graph or algorithm, then recover by terminating or rolling back processes.</p>
+        </div>
+      </div>
+      <div class="condition-card" style="border-color:rgba(34,211,238,0.3)">
+        <div class="cond-icon" style="background:rgba(34,211,238,0.15); font-size:18px;">🏦</div>
+        <div>
+          <h3>Avoidance (Banker's)</h3>
+          <p>Before granting a resource, check if the resulting state is safe. If not, make the process wait. Requires knowing maximum needs in advance.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: HOW IT WORKS ===== -->
+<div id="tab-howto" class="tab-content">
+  <div style="max-width: 760px; margin: 0 auto; padding: 2rem;">
+    <div class="panel-title">🧠 How the Banker's Algorithm Works</div>
+
+    <div class="algo-block" style="margin-bottom:1rem">
+      <strong>Step 1 — Compute the Need Matrix</strong><br>
+      <span class="highlight">Need[i][j] = Max[i][j] − Allocation[i][j]</span><br>
+      This tells us how many more resources each process may need to finish.
+    </div>
+
+    <div class="algo-block" style="margin-bottom:1rem">
+      <strong>Step 2 — Initialize Work and Finish vectors</strong><br>
+      <span class="highlight">Work = Available</span> — tracks resources currently usable.<br>
+      <span class="highlight">Finish[i] = false</span> for all processes — none have been scheduled yet.
+    </div>
+
+    <div class="algo-block" style="margin-bottom:1rem">
+      <strong>Step 3 — Find a runnable process</strong><br>
+      Find process Pᵢ where <span class="highlight">Finish[i] == false</span> AND <span class="highlight">Need[i] ≤ Work</span><br>
+      This process can get all it needs from currently available resources.
+    </div>
+
+    <div class="algo-block" style="margin-bottom:1rem">
+      <strong>Step 4 — Simulate execution &amp; release</strong><br>
+      <span class="highlight">Work = Work + Allocation[i]</span><br>
+      <span class="highlight">Finish[i] = true</span><br>
+      The process runs to completion and releases all its resources back to Work.
+    </div>
+
+    <div class="algo-block" style="margin-bottom:1rem">
+      <strong>Step 5 — Repeat or conclude</strong><br>
+      Go back to Step 3. If all <span class="highlight">Finish[i] == true</span> → ✅ <strong>System is in a safe state</strong>.<br>
+      If no such process exists and some Finish[i] is still false → ❌ <strong>Deadlock detected</strong>.
+    </div>
+
+    <hr class="sep">
+    <div class="panel-title">⚡ Recovery Strategies</div>
+
+    <div class="algo-block" style="margin-bottom:1rem">
+      <strong>Process Termination</strong><br>
+      Abort all deadlocked processes (drastic but simple), or abort one at a time and re-run the detection algorithm after each abort until the deadlock is broken.
+    </div>
+
+    <div class="algo-block" style="margin-bottom:1rem">
+      <strong>Resource Preemption</strong><br>
+      Forcibly take resources from a victim process. Roll back the victim to a safe checkpoint. Key considerations: selecting a victim (minimize cost), avoiding starvation (don't always pick the same process).
+    </div>
+
+    <div class="algo-block">
+      <strong>The "Recover" button in this tool</strong><br>
+      It identifies the process holding the <strong>most total resources</strong> (highest allocation sum) and suggests it as the process to terminate or preempt first — a common heuristic.
+    </div>
+  </div>
+</div>
+
+<script>
+let chartInstance = null;
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+function getMatrix(text) {
+  return text.trim().split("\n").map(r =>
+    r.trim().split(/[\s,]+/).map(Number)
+  );
+}
+
+function log(msg, cls = '') {
+  const el = document.getElementById("output");
+  el.innerHTML += `<div class="${cls}">${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(type, text) {
+  const bar = document.getElementById("status-bar");
+  bar.className = 'status-bar status-' + type;
+  document.getElementById("status-text").textContent = text;
+}
+
+function setProgress(done, total) {
+  const pct = total ? (done / total * 100) : 0;
+  document.getElementById("progress-fill").style.width = pct + '%';
+  document.getElementById("progress-label").textContent = `Progress: ${done}/${total} processes scheduled`;
+}
+
+function run() {
+  document.getElementById("output").innerHTML = "";
+  document.getElementById("step-explainer").classList.remove("visible");
+  document.getElementById("prevention-tip").classList.remove("visible");
+  document.getElementById("steps-list").innerHTML = "";
+  setStatus('running', 'Running safety check...');
+  simulate(false);
+}
+
+async function stepByStep() {
+  document.getElementById("output").innerHTML = "";
+  document.getElementById("step-explainer").classList.add("visible");
+  document.getElementById("prevention-tip").classList.remove("visible");
+  document.getElementById("steps-list").innerHTML = "";
+  setStatus('running', 'Running step-by-step trace...');
+  await simulate(true);
+}
+
+async function simulate(step) {
+  const pNames = document.getElementById("processes").value.split(",").map(s => s.trim());
+  const avail  = document.getElementById("available").value.trim().split(/[\s,]+/).map(Number);
+  const alloc  = getMatrix(document.getElementById("alloc").value);
+  const maxM   = getMatrix(document.getElementById("max").value);
+
+  const n = pNames.length, m = avail.length;
+
+  log(`<span class="log-header">// Banker's Algorithm — ${n} processes, ${m} resource types</span>`);
+  log(`<span class="log-header">// Available: [${avail.join(', ')}]</span>`);
+
+  // Compute Need
+  const need = [];
+  for (let i = 0; i < n; i++) {
+    need[i] = [];
+    for (let j = 0; j < m; j++) need[i][j] = maxM[i][j] - alloc[i][j];
+  }
+
+  // Show Need matrix
+  log(`<span class="log-info">── Need Matrix ──────────────────</span>`);
+  for (let i = 0; i < n; i++) {
+    log(`<span class="log-info">   ${pNames[i]}: [${need[i].join(', ')}]</span>`);
+  }
+  log('');
+
+  if (step) buildNeedTable(pNames, need, alloc, avail, m);
+
+  const finish = new Array(n).fill(false);
+  const work   = [...avail];
+  const seq    = [];
+
+  setProgress(0, n);
+
+  while (seq.length < n) {
+    let found = false;
+
+    for (let i = 0; i < n; i++) {
+      if (finish[i]) continue;
+
+      const canRun = need[i].every((v, j) => v <= work[j]);
+
+      if (canRun) {
+        log(`<span class="log-step">→ ${pNames[i]} can run  Need:[${need[i].join(',')}] ≤ Work:[${work.map((v,j)=>work[j]).join(',')}]</span>`);
+        if (step) {
+          await new Promise(r => setTimeout(r, 700));
+          highlightStep(i);
+        }
+
+        for (let j = 0; j < m; j++) work[j] += alloc[i][j];
+
+        log(`<span class="log-step">  ✓ ${pNames[i]} finished → Work now: [${work.join(', ')}]</span>`);
+        finish[i] = true;
+        seq.push(pNames[i]);
+        found = true;
+        setProgress(seq.length, n);
+        if (step) await new Promise(r => setTimeout(r, 400));
+      }
+    }
+
+    if (!found) {
+      log('');
+      log(`<span class="log-dead">╔══════════════════════════════════╗</span>`);
+      log(`<span class="log-dead">║   ❌ DEADLOCK DETECTED!           ║</span>`);
+      log(`<span class="log-dead">╚══════════════════════════════════╝</span>`);
+      log(`<span class="log-dead">Stuck processes: ${pNames.filter((_,i)=>!finish[i]).join(', ')}</span>`);
+      setStatus('dead', 'DEADLOCK DETECTED — system is in an unsafe state');
+      showPreventionTip('deadlock');
+      drawChart(alloc, pNames, false);
+      return;
+    }
+  }
+
+  log('');
+  log(`<span class="log-safe">╔══════════════════════════════════╗</span>`);
+  log(`<span class="log-safe">║   ✅ SAFE STATE CONFIRMED!        ║</span>`);
+  log(`<span class="log-safe">╚══════════════════════════════════╝</span>`);
+  log(`<span class="log-safe">Safe sequence: ${seq.join(' → ')}</span>`);
+  setStatus('safe', 'Safe state — sequence: ' + seq.join(' → '));
+  showPreventionTip('safe');
+  drawChart(alloc, pNames, true);
+}
+
+function buildNeedTable(pNames, need, alloc, avail, m) {
+  const sl = document.getElementById("steps-list");
+  sl.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.style.cssText = 'margin-bottom:8px;font-size:0.75rem;color:var(--muted)';
+  header.textContent = 'Process states (highlight shows current candidate):';
+  sl.appendChild(header);
+
+  for (let i = 0; i < pNames.length; i++) {
+    const card = document.createElement('div');
+    card.className = 'step-card';
+    card.id = 'step-card-' + i;
+    const canRun = need[i].every((v, j) => v <= avail[j]);
+    card.innerHTML = `<strong>${pNames[i]}</strong> &nbsp;Need: [${need[i].join(', ')}] &nbsp;Alloc: [${alloc[i].join(', ')}]
+      <span style="float:right;font-size:0.72rem;color:${canRun?'var(--green)':'var(--muted)'}">${canRun ? 'eligible ✓' : 'waiting…'}</span>`;
+    sl.appendChild(card);
+  }
+}
+
+function highlightStep(idx) {
+  document.querySelectorAll('.step-card').forEach((c, i) => {
+    c.className = 'step-card' + (i < idx ? ' done' : i === idx ? ' current' : '');
+  });
+}
+
+function showPreventionTip(type) {
+  const tip = document.getElementById("prevention-tip");
+  tip.classList.add("visible");
+  if (type === 'deadlock') {
+    tip.innerHTML = `<strong>💡 Prevention Tip:</strong> A deadlock exists because no process can proceed. Try:
+    <br>• Increasing available resources
+    <br>• Reducing max resource claims in the Max matrix
+    <br>• Eliminating the circular wait by ordering resource requests
+    <br>• Using the <strong>Recover</strong> button to identify which process to terminate`;
+  } else {
+    tip.innerHTML = `<strong>✅ System is safe.</strong> All processes can complete in the order shown.
+    The Banker's Algorithm confirmed that from every reachable allocation state, a safe sequence exists.
+    <br><br><strong>Tip:</strong> The safe sequence is <em>not</em> necessarily the only valid execution order — it's the one the algorithm found first.`;
+  }
+}
+
+function recover() {
+  const pNames = document.getElementById("processes").value.split(",").map(s => s.trim());
+  const alloc  = getMatrix(document.getElementById("alloc").value);
+
+  const totals = alloc.map(row => row.reduce((a, b) => a + b, 0));
+  const idx    = totals.indexOf(Math.max(...totals));
+
+  document.getElementById("output").innerHTML = "";
+  log(`<span class="log-header">// Recovery via Process Termination</span>`);
+  log(`<span class="log-recover">Analysis: Resource totals per process:</span>`);
+  pNames.forEach((p, i) => log(`<span class="log-recover">  ${p}: ${totals[i]} total units held</span>`));
+  log('');
+  log(`<span class="log-recover">⚠ Suggested victim: <strong>${pNames[idx]}</strong> (holds most resources: ${totals[idx]} units)</span>`);
+  log(`<span class="log-recover">Action: Terminate ${pNames[idx]} and release its resources: [${alloc[idx].join(', ')}]</span>`);
+  log(`<span class="log-recover">Then re-run the safety check on the remaining processes.</span>`);
+
+  setStatus('running', `Recovery: terminate ${pNames[idx]} and re-check`);
+  showPreventionTip('deadlock');
+}
+
+function drawChart(alloc, pNames, isSafe) {
+  const ctx = document.getElementById("graph");
+  if (chartInstance) chartInstance.destroy();
+
+  const data = alloc.map(r => r.reduce((a, b) => a + b, 0));
+  const colors = data.map((_, i) => {
+    const hues = [260, 180, 40, 330, 140, 200];
+    return `hsla(${hues[i % hues.length]}, 80%, 65%, 0.8)`;
+  });
+
+  chartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: pNames,
+      datasets: [{
+        label: 'Total Allocated Resources',
+        data: data,
+        backgroundColor: colors,
+        borderColor: colors.map(c => c.replace('0.8', '1')),
+        borderWidth: 1,
+        borderRadius: 5
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: '#7c7a9a', font: { family: 'JetBrains Mono' } } }
+      },
+      scales: {
+        x: { ticks: { color: '#7c7a9a' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { ticks: { color: '#7c7a9a' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+      }
+    }
+  });
+}
+
+function exportReport() {
+  const text = document.getElementById("output").innerText;
+  const blob = new Blob([`DEADLOCK TOOLKIT — REPORT\n${'='.repeat(40)}\n\n${text}`], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "deadlock_report.txt";
+  a.click();
+}
+</script>
+</body>
+</html>
